@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Advent_Pro, Fira_Code } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/context/auth-context";
 
 const adventPro = Advent_Pro({
   variable: "--font-advent-pro",
@@ -27,7 +28,7 @@ export default function RootLayout({
       <body
         className={`${adventPro.variable} ${firaCode.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
