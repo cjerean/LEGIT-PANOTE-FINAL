@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/context/auth-context";
 
 interface Note {
     id: string;
@@ -57,6 +58,18 @@ export function Sidebar({
 }: SidebarProps) {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const [isEditingTags, setIsEditingTags] = React.useState(false);
+    const { user } = useAuth();
+
+    // Get display name: metadata.full_name -> email -> "User"
+    const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User";
+
+    // Get initials for avatar fallback
+    const initials = displayName
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
 
     // Sort notes: pinned first, then by date (newest first)
     const sortedNotes = [...notes].sort((a, b) => {
@@ -83,9 +96,9 @@ export function Sidebar({
                 <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
                         <AvatarImage src="/placeholder-user.jpg" />
-                        <AvatarFallback>UN</AvatarFallback>
+                        <AvatarFallback>{initials || "UN"}</AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">(User)'s Notepad</span>
+                    <span className="text-sm font-medium">{displayName}'s Notepad</span>
                 </div>
                 {!isTrash && (
                     <Button variant="ghost" size="icon" className="ml-auto" onClick={onAddNote}>
