@@ -107,29 +107,44 @@ export function Sidebar({
     const isTagSearch = lowerQuery.startsWith("tag:");
     const tagSearchQuery = isTagSearch ? lowerQuery.slice(4).trim() : "";
 
-    // 1. Filter Tags (for visual list in search results)
-    // If tag: prefix used, we only show tags matching the suffix.
-    // If no prefix, we show tags matching the whole query.
-    const matchedTags = tags.filter(tag => {
+    // 1. Matched Tags Logic
+    let matchedTags: Tag[] = [];
+    let showUntaggedResult = false;
+
+    if (hasSearch) {
         if (isTagSearch) {
-            return tag.name.toLowerCase().includes(tagSearchQuery);
+            // "tag:" or "tag: something"
+            if (!tagSearchQuery) {
+                // "tag:" -> show all matchable tags? Or just prompt? 
+                // User request: "If the user enters tag: without specifying a tag name, all available tags will be displayed"
+                matchedTags = tags;
+                showUntaggedResult = true; // "tag: untagged" should appear?
+            } else {
+                // "tag: something" -> filter tags
+                matchedTags = tags.filter(t => t.name.toLowerCase().includes(tagSearchQuery));
+                if ("untagged".includes(tagSearchQuery)) {
+                    showUntaggedResult = true;
+                }
+            }
+        } else {
+            // Normal search -> also show relevant tags in "Tags" section if they match query
+            matchedTags = tags.filter(t => t.name.toLowerCase().includes(lowerQuery));
+            // Also check if they might be searching for "untagged" literally
+            if ("untagged".includes(lowerQuery)) {
+                // Actually user request: "Tags will display tag-related results (such as tag: untagged notes and tag: tag name)"
+                // So if normal search matches "untagged", show it?
+                // Let's be permissive.
+                showUntaggedResult = true;
+            }
         }
-        return tag.name.toLowerCase().includes(lowerQuery);
-    });
+    }
 
-    // Check for "untagged" notes
-    const hasUntaggedNotes = notes.some(n => (!n.tag_id) && !n.trashed);
-    // Show untagged option if it matches query or if specific tag:untagged (optional enhancement)
-    const showUntagged = hasUntaggedNotes && "untagged".includes(isTagSearch ? tagSearchQuery : lowerQuery);
 
-    // Combine matched tags and potentially "untagged"
-    const displayTags = matchedTags;
-
-    // 2. Filter Notes
+    // 2. Filter Notes Logic
     const filteredNotes = notes.filter(note => {
         if (note.trashed && !isTrash) return false;
 
-        // 1. Filter by View
+        // 1. Filter by Active View (Untagged/Tag/All)
         if (activeFilter.type === 'untagged') {
             if (note.tag_id) return false;
         } else if (activeFilter.type === 'tag') {
@@ -138,19 +153,30 @@ export function Sidebar({
 
         // 2. Filter by Search Query
         if (hasSearch) {
-            const noteTagName = note.tag_id ? (tags.find(t => t.id === note.tag_id)?.name || "") : "";
+            const noteTag = tags.find(t => t.id === note.tag_id);
+            const noteTagName = noteTag?.name || "";
 
             if (isTagSearch) {
-                // strict tag searching
-                if (!tagSearchQuery) return true;
+                // Strict "tag:" search
+                if (!tagSearchQuery) return true; // Show all if just "tag:" typed? Or maybe none? 
+                // "When a valid tag name is entered, all notes associated with that tag will be displayed"
+                // Implies: if "tag: work", show notes with tag "work".
 
-                // Let's filter by exact/partial match on tags
+                // Special case: "tag: untagged" -> show untagged notes? 
+                // User said: "Upon clicking tag: untagged, the user will be redirected to the Untagged Notes section"
+                // It implies the *search result item* redirects. 
+                // Does the note list *also* filter by it live? Probably.
+                if (tagSearchQuery === "untagged") {
+                    return !note.tag_id;
+                }
+
                 return noteTagName.toLowerCase().includes(tagSearchQuery);
             } else {
-                // Normal search: title OR tag content
-                const titleMatch = note.title.toLowerCase().includes(lowerQuery);
+                // Normal search: Title, Content, or Tag Name
+                const titleMatch = (note.title || "").toLowerCase().includes(lowerQuery); // Fix: title could be empty/undefined safe check
+                const contentMatch = (note.content || "").toLowerCase().includes(lowerQuery);
                 const tagMatch = noteTagName.toLowerCase().includes(lowerQuery);
-                return titleMatch || tagMatch;
+                return titleMatch || contentMatch || tagMatch;
             }
         }
 
@@ -330,24 +356,27 @@ export function Sidebar({
                         // SEARCH RESULTS VIEW
                         <div className="space-y-1 p-2">
                             {/* Search by Tag Section */}
-                            {(displayTags.length > 0 || showUntagged) && (
+                            {(matchedTags.length > 0 || showUntaggedResult) && (
                                 <div className="mb-4">
                                     <div className="mb-2 px-2 text-xs font-semibold text-muted-foreground uppercase">
-                                        Search by Tag
+                                        Tags
                                     </div>
-                                    {displayTags.map(tag => (
+                                    {matchedTags.map(tag => (
                                         <div
                                             key={tag.id}
                                             className="flex items-center px-2 py-1.5 text-sm text-sidebar-foreground cursor-pointer hover:bg-sidebar-accent/50 rounded-md"
                                             onClick={() => {
-                                                setSearchQuery(`tag: ${tag.name}`);
+                                                // If parsing "tag: name", clicking it sets filter or auto-completes?
+                                                // "tag: untagged will appear as a search result. Upon clicking tag: untagged, the user will be redirected to the Untagged Notes section"
+                                                // Let's behave similarly for real tags: redirect to filter.
+                                                handleSetFilter('tag', tag.id);
                                             }}
                                         >
                                             <Tag className="mr-2 h-4 w-4" />
                                             tag: {tag.name}
                                         </div>
                                     ))}
-                                    {showUntagged && (
+                                    {showUntaggedResult && (
                                         <div
                                             className="flex items-center px-2 py-1.5 text-sm text-sidebar-foreground cursor-pointer hover:bg-sidebar-accent/50 rounded-md"
                                             onClick={() => {
@@ -365,37 +394,41 @@ export function Sidebar({
                             <div className="mb-2 px-2 text-xs font-semibold text-muted-foreground uppercase">
                                 Notes
                             </div>
-                            {sortedNotes.map((note) => (
-                                <div
-                                    key={note.id}
-                                    className={cn(
-                                        "group flex flex-col gap-1 rounded-lg p-3 transition-colors hover:bg-sidebar-accent/50 cursor-pointer",
-                                        currentNoteId === note.id ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground"
-                                    )}
-                                    onClick={() => onSelectNote(note.id)}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <span className="font-medium line-clamp-1">{note.title || "Title"}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={cn(
-                                                "h-6 w-6 hover:bg-transparent",
-                                                note.pinned ? "text-primary opacity-100" : "opacity-0 group-hover:opacity-50"
-                                            )}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onPinNote(note.id);
-                                            }}
-                                        >
-                                            <Pin className={cn("h-3 w-3", note.pinned && "fill-current")} />
-                                        </Button>
+                            {sortedNotes.length > 0 ? (
+                                sortedNotes.map((note) => (
+                                    <div
+                                        key={note.id}
+                                        className={cn(
+                                            "group flex flex-col gap-1 rounded-lg p-3 transition-colors hover:bg-sidebar-accent/50 cursor-pointer",
+                                            currentNoteId === note.id ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground"
+                                        )}
+                                        onClick={() => onSelectNote(note.id)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium line-clamp-1">{note.title || "Untitled"}</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className={cn(
+                                                    "h-6 w-6 hover:bg-transparent",
+                                                    note.pinned ? "text-primary opacity-100" : "opacity-0 group-hover:opacity-50"
+                                                )}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onPinNote(note.id);
+                                                }}
+                                            >
+                                                <Pin className={cn("h-3 w-3", note.pinned && "fill-current")} />
+                                            </Button>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground line-clamp-1">
+                                            {note.content || "No content"}
+                                        </span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground line-clamp-1">
-                                        {note.content || "No content"}
-                                    </span>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <div className="px-2 text-sm text-muted-foreground">No matching notes found.</div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-1 p-2">
