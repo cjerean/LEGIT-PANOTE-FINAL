@@ -151,7 +151,7 @@ export default function Home() {
           <Editor
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            tags={allTags}
+            tags={currentNote.tags || []}
             onAddTag={handleAddTag}
             onDeleteTag={handleRemoveTagFromNote}
             note={currentNote}
@@ -164,7 +164,7 @@ export default function Home() {
           <Editor
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            tags={allTags}
+            tags={currentNote.tags || []}
             onAddTag={handleAddTag}
             onDeleteTag={handleRemoveTagFromNote}
             note={currentNote}
