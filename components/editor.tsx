@@ -10,6 +10,7 @@ import {
     X,
     ListTodo,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,22 +29,28 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface Tag {
+    id: string;
+    name: string;
+}
+
 interface Note {
     id: string;
     title: string;
     content: string;
     date: string;
     pinned: boolean;
+    tag_id?: string;
 }
 
 interface EditorProps {
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
-    tags: string[];
-    onAddTag: (tag: string) => void;
-    onDeleteTag: (tag: string) => void;
+    tags: Tag[];
+    onAddTag: (name: string) => void;
+    onDeleteTag: (id: string) => void;
     note: Note;
-    onUpdateNote: (title: string, content: string) => void;
+    onUpdateNote: (title: string, content: string, tag_id?: string) => void;
     onMoveToTrash?: () => void;
     onRestoreNote?: () => void;
     onDeleteForever?: () => void;
@@ -105,7 +112,7 @@ export function Editor({
             newCursorPos = start + 6;
         }
 
-        onUpdateNote(note.title, newValue);
+        onUpdateNote(note.title, newValue, note.tag_id);
 
         // Restore cursor position after render
         requestAnimationFrame(() => {
@@ -225,7 +232,7 @@ export function Editor({
                         className="mb-4 border-none bg-transparent text-4xl font-bold shadow-none focus-visible:ring-0 px-0"
                         placeholder="Title"
                         value={note.title}
-                        onChange={(e) => onUpdateNote(e.target.value, note.content)}
+                        onChange={(e) => onUpdateNote(e.target.value, note.content, note.tag_id)}
                         disabled={isTrash}
                     />
                     <Textarea
@@ -233,7 +240,7 @@ export function Editor({
                         className="min-h-[calc(100vh-300px)] resize-none border-none bg-transparent text-lg shadow-none focus-visible:ring-0 px-0"
                         placeholder="This is your text."
                         value={note.content}
-                        onChange={(e) => onUpdateNote(note.title, e.target.value)}
+                        onChange={(e) => onUpdateNote(note.title, e.target.value, note.tag_id)}
                         disabled={isTrash}
                     />
                 </div>
@@ -241,12 +248,25 @@ export function Editor({
 
             {/* Tags Section - Fixed at bottom left of the editor area */}
             <div className="absolute bottom-4 left-8 flex flex-wrap items-center gap-2">
-                {tags.map((tag, index) => (
-                    <div key={index} className="flex items-center gap-1 rounded-md bg-secondary/50 px-2 py-1 text-sm text-secondary-foreground group">
+                {tags.map((tag) => (
+                    <div
+                        key={tag.id}
+                        className={cn(
+                            "flex items-center gap-1 rounded-md px-2 py-1 text-sm bg-secondary/50 text-secondary-foreground group cursor-pointer transition-colors",
+                            note.tag_id === tag.id && "bg-primary text-primary-foreground"
+                        )}
+                        onClick={() => !isTrash && onUpdateNote(note.title, note.content, note.tag_id === tag.id ? undefined : tag.id)}
+                    >
                         <Tag className="h-3 w-3" />
-                        <span>{tag}</span>
+                        <span>{tag.name}</span>
                         {!isTrash && (
-                            <button onClick={() => onDeleteTag(tag)} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteTag(tag.id);
+                                }}
+                                className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
                                 <X className="h-3 w-3" />
                             </button>
                         )}
