@@ -6,14 +6,19 @@ import { Editor } from "@/components/editor";
 import { AIChat } from "@/components/ai-chat";
 import { SettingsDialog } from "@/components/settings-dialog";
 
+interface Tag {
+  id: string;
+  name: string;
+}
+
 interface Note {
   id: string;
   title: string;
   content: string;
-  date: string;
-  pinned: boolean;
-  trashed?: boolean;
-  tags: string[];
+  date: string; // We'll map created_at/updated_at to this
+  pinned: boolean; // Mapped from is_pinned
+  trashed?: boolean; // Mapped from is_deleted
+  tag_id?: string;
 }
 
 export default function Home() {
@@ -22,21 +27,54 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [availableTags, setAvailableTags] = React.useState<string[]>([]);
 
-  // Note State - Initial Welcome Note
-  const [notes, setNotes] = React.useState<Note[]>([
-    {
-      id: 'welcome-note',
-      title: 'Welcome to Pa-Note',
-      content: `Pa-Note is an easy way to take notes, capture ideas, and more. Open it, jot down some thoughts, and you're done. 
+  const [tags, setTags] = React.useState<Tag[]>([]);
+  const [notes, setNotes] = React.useState<Note[]>([]);
+  const [trashNotes, setTrashNotes] = React.useState<Note[]>([]);
+  const [currentNoteId, setCurrentNoteId] = React.useState<string | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-Pinned Notes
+  // Fetch Data
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [notesRes, tagsRes, trashRes] = await Promise.all([
+        fetch('/api/notes'),
+        fetch('/api/tags'),
+        fetch('/api/trash')
+      ]);
 
-Have a few important notes that you keep coming back to? Pin those notes to the top of your list for easier access.
+      if (notesRes.ok) {
+        const data = await notesRes.json();
+        setNotes(data.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          date: new Date(n.updated_at).toLocaleDateString(),
+          pinned: n.is_pinned,
+          trashed: false,
+          tag_id: n.tag_id
+        })));
+      }
 
-Tags
+      if (tagsRes.ok) {
+        const data = await tagsRes.json();
+        setTags(data);
+      }
 
-Keep your notes organized by adding tags. Tags work a bit like folders, except there’s no limit to the number of tags you can add per note.
+      if (trashRes.ok) {
+        const data = await trashRes.json();
+        setTrashNotes(data.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          date: new Date(n.deleted_at).toLocaleDateString(),
+          pinned: n.is_pinned,
+          trashed: true,
+          tag_id: n.tag_id
+        })));
+      }
 
+<<<<<<< HEAD
 Search
 
 Quickly find notes using search. To search by tag, type “tag:” in the search bar followed by the name of your tag.
@@ -48,9 +86,18 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
       pinned: true,
       trashed: false,
       tags: []
+=======
+    } catch (error) {
+      console.error("Failed to fetch data", error);
+    } finally {
+      setIsLoading(false);
+>>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
     }
-  ]);
-  const [currentNoteId, setCurrentNoteId] = React.useState<string>('welcome-note');
+  }, []);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Initialize availableTags from existing notes
   React.useEffect(() => {
@@ -65,9 +112,12 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
       setIsSettingsOpen(true);
     } else {
       setCurrentView(view);
+      // If switching to notes/trash, maybe select the first one?
+      setCurrentNoteId(null);
     }
   };
 
+<<<<<<< HEAD
   // Tag Handlers
   const handleAddTag = (tag: string) => {
     const trimmedTag = tag.trim();
@@ -83,22 +133,34 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
         if (!note.tags.includes(trimmedTag)) {
           return { ...note, tags: [...note.tags, trimmedTag] };
         }
+=======
+  const handleAddTag = async (name: string) => {
+    if (!name.trim()) return;
+    try {
+      const res = await fetch('/api/tags', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim() })
+      });
+      if (res.ok) {
+        const newTag = await res.json();
+        setTags([...tags, newTag]);
+>>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
       }
-      return note;
-    }));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleRemoveTagFromNote = (tagToDelete: string) => {
-    if (!currentNoteId) return;
-
-    setNotes(notes.map(note => {
-      if (note.id === currentNoteId) {
-        return { ...note, tags: note.tags.filter(t => t !== tagToDelete) };
-      }
-      return note;
-    }));
+  const handleDeleteTag = async (id: string) => {
+    try {
+      await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+      setTags(tags.filter((tag) => tag.id !== id));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
+<<<<<<< HEAD
   // Global delete for sidebar
   const handleDeleteTagGlobally = (tagToDelete: string) => {
     // Remove from available tags
@@ -111,64 +173,127 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
     })));
   };
 
+=======
+>>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
   // Note Handlers
-  const handleAddNote = () => {
-    const newNote: Note = {
-      id: Date.now().toString(),
-      title: 'Title',
-      content: '',
-      date: new Date().toLocaleDateString(),
-      pinned: false,
-      trashed: false,
-      tags: []
-    };
-    setNotes([newNote, ...notes]);
-    setCurrentNoteId(newNote.id);
-    // Ensure we are in notes view when adding a note
-    if (currentView === 'trash') {
-      setCurrentView('notes');
+  const handleAddNote = async () => {
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'New Note', content: '' })
+      });
+      if (res.ok) {
+        const n = await res.json();
+        const newNote: Note = {
+          id: n.id,
+          title: n.title,
+          content: n.content || '',
+          date: new Date(n.updated_at).toLocaleDateString(),
+          pinned: n.is_pinned,
+          trashed: false,
+          tag_id: n.tag_id
+        };
+        setNotes([newNote, ...notes]);
+        setCurrentNoteId(newNote.id);
+        if (currentView === 'trash') setCurrentView('notes');
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const handlePinNote = (id: string) => {
-    setNotes(notes.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note));
-  };
+  const handlePinNote = async (id: string) => {
+    const noteToUpdate = notes.find(n => n.id === id);
+    if (!noteToUpdate) return;
 
-  const handleUpdateNote = (id: string, title: string, content: string) => {
-    setNotes(notes.map(note => note.id === id ? { ...note, title, content } : note));
-  };
+    // Optimistic update
+    const updatedNotes = notes.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note);
+    setNotes(updatedNotes);
 
-  const handleMoveToTrash = (id: string) => {
-    setNotes(notes.map(note => note.id === id ? { ...note, trashed: true } : note));
-  };
-
-  const handleRestoreFromTrash = (id: string) => {
-    setNotes(notes.map(note => note.id === id ? { ...note, trashed: false } : note));
-  };
-
-  const handleDeleteForever = (id: string) => {
-    setNotes(notes.filter(note => note.id !== id));
-    if (currentNoteId === id) {
-      setCurrentNoteId('');
+    try {
+      await fetch(`/api/notes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_pinned: !noteToUpdate.pinned })
+      });
+    } catch (e) {
+      console.error(e);
+      // Revert on failure?
+      fetchData();
     }
   };
 
-  // Filter notes based on current view
-  const visibleNotes = notes.filter(note => {
-    if (currentView === 'trash') {
-      return note.trashed;
+  const handleUpdateNote = async (id: string, title: string, content: string, tag_id?: string) => {
+    // Optimistic update (local state)
+    if (currentView === 'notes') {
+      setNotes(notes.map(note => note.id === id ? { ...note, title, content, tag_id } : note));
+    } else {
+      setTrashNotes(trashNotes.map(note => note.id === id ? { ...note, title, content, tag_id } : note));
     }
-    return !note.trashed;
-  });
 
-  const currentNote = notes.find(n => n.id === currentNoteId) || (visibleNotes.length > 0 ? visibleNotes[0] : undefined);
-
-  // Update currentNoteId if it's invalid or empty but we have notes
-  React.useEffect(() => {
-    if (!currentNoteId && visibleNotes.length > 0) {
-      setCurrentNoteId(visibleNotes[0].id);
+    // Debounce this in a real app, but for now direct call
+    try {
+      await fetch(`/api/notes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title, content, tag_id })
+      });
+    } catch (e) {
+      console.error(e);
     }
-  }, [currentNoteId, visibleNotes]);
+  };
+
+  const handleMoveToTrash = async (id: string) => {
+    // Optimistic
+    const note = notes.find(n => n.id === id);
+    if (note) {
+      setNotes(notes.filter(n => n.id !== id));
+      setTrashNotes([{ ...note, trashed: true }, ...trashNotes]);
+      if (currentNoteId === id) setCurrentNoteId(null);
+    }
+
+    try {
+      await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error(e);
+      fetchData();
+    }
+  };
+
+  const handleRestoreFromTrash = async (id: string) => {
+    // Optimistic
+    const note = trashNotes.find(n => n.id === id);
+    if (note) {
+      setTrashNotes(trashNotes.filter(n => n.id !== id));
+      setNotes([{ ...note, trashed: false }, ...notes]);
+      if (currentNoteId === id) setCurrentNoteId(null);
+    }
+
+    try {
+      await fetch(`/api/notes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_deleted: false })
+      });
+    } catch (e) {
+      console.error(e);
+      fetchData();
+    }
+  };
+
+  const handleDeleteForever = async (id: string) => {
+    // Optimistic
+    setTrashNotes(trashNotes.filter(n => n.id !== id));
+    if (currentNoteId === id) setCurrentNoteId(null);
+
+    try {
+      await fetch(`/api/trash?id=${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error(e);
+      fetchData();
+    }
+  };
+
+  // Determine what to display
+  const displayNotes = currentView === 'trash' ? trashNotes : notes;
+  const currentNote = displayNotes.find(n => n.id === currentNoteId);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
@@ -177,10 +302,17 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
           currentView={currentView}
           onNavigate={handleNavigate}
           className="hidden md:flex"
+<<<<<<< HEAD
           tags={availableTags}
           onDeleteTag={handleDeleteTagGlobally}
           notes={visibleNotes}
           currentNoteId={currentNoteId}
+=======
+          tags={tags}
+          onDeleteTag={handleDeleteTag}
+          notes={displayNotes}
+          currentNoteId={currentNoteId || ''}
+>>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
           onSelectNote={setCurrentNoteId}
           onAddNote={handleAddNote}
           onPinNote={handlePinNote}
@@ -188,32 +320,44 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
         />
       )}
       <main className="flex-1 overflow-hidden">
-        {currentView === "notes" && currentNote && !currentNote.trashed && (
-          <Editor
-            isSidebarOpen={isSidebarOpen}
-            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            tags={currentNote.tags || []}
-            onAddTag={handleAddTag}
-            onDeleteTag={handleRemoveTagFromNote}
-            note={currentNote}
-            onUpdateNote={(title, content) => handleUpdateNote(currentNote.id, title, content)}
-            onMoveToTrash={() => handleMoveToTrash(currentNote.id)}
-            isTrash={false}
-          />
+        {currentView === "notes" && (
+          currentNote ? (
+            <Editor
+              isSidebarOpen={isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+              tags={tags}
+              onAddTag={handleAddTag}
+              onDeleteTag={handleDeleteTag}
+              note={currentNote}
+              onUpdateNote={(title, content, tag_id) => handleUpdateNote(currentNote.id, title, content, tag_id)}
+              onMoveToTrash={() => handleMoveToTrash(currentNote.id)}
+              isTrash={false}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              Select a note or create a new one.
+            </div>
+          )
         )}
-        {currentView === "trash" && currentNote && currentNote.trashed && (
-          <Editor
-            isSidebarOpen={isSidebarOpen}
-            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            tags={currentNote.tags || []}
-            onAddTag={handleAddTag}
-            onDeleteTag={handleRemoveTagFromNote}
-            note={currentNote}
-            onUpdateNote={(title, content) => handleUpdateNote(currentNote.id, title, content)}
-            onRestoreNote={() => handleRestoreFromTrash(currentNote.id)}
-            onDeleteForever={() => handleDeleteForever(currentNote.id)}
-            isTrash={true}
-          />
+        {currentView === "trash" && (
+          currentNote ? (
+            <Editor
+              isSidebarOpen={isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+              tags={tags}
+              onAddTag={handleAddTag}
+              onDeleteTag={handleDeleteTag}
+              note={currentNote}
+              onUpdateNote={(title, content, tag_id) => handleUpdateNote(currentNote.id, title, content, tag_id)}
+              onRestoreNote={() => handleRestoreFromTrash(currentNote.id)}
+              onDeleteForever={() => handleDeleteForever(currentNote.id)}
+              isTrash={true}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              Select a trashed note to view.
+            </div>
+          )
         )}
         {currentView === "ai" && <AIChat />}
       </main>
