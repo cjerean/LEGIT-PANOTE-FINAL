@@ -4,7 +4,6 @@ import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
 // 1. Import the ThemeProvider you created
 import { ThemeProvider } from "@/components/ui/themeprovider";
-import { ModeToggle } from "@/components/ui/toggle";
 
 const adventPro = Advent_Pro({
   variable: "--font-advent-pro",

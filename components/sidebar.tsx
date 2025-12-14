@@ -238,8 +238,7 @@ export function Sidebar({
                             variant={currentView === "notes" ? "secondary" : "ghost"}
                             className="w-full justify-start"
                             onClick={() => {
-                                onNavigate("notes");
-                                setIsMenuOpen(false);
+                                handleSetFilter('all');
                             }}
                         >
                             <FileText className="mr-2 h-4 w-4" />
@@ -341,7 +340,12 @@ export function Sidebar({
             <div className="p-4">
                 <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search all notes and tags" className="pl-8" />
+                    <Input
+                        placeholder="Search all notes and tags"
+                        className="pl-8"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                 </div>
             </div>
 
