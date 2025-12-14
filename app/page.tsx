@@ -73,25 +73,10 @@ export default function Home() {
           tag_id: n.tag_id
         })));
       }
-
-<<<<<<< HEAD
-Search
-
-Quickly find notes using search. To search by tag, type “tag:” in the search bar followed by the name of your tag.
-
-Baldy AI
-
-Get help from Baldy AI, your personal assistant for note-taking and organization.`,
-      date: new Date().toLocaleDateString(),
-      pinned: true,
-      trashed: false,
-      tags: []
-=======
     } catch (error) {
       console.error("Failed to fetch data", error);
     } finally {
       setIsLoading(false);
->>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
     }
   }, []);
 
@@ -101,11 +86,13 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
 
   // Initialize availableTags from existing notes
   React.useEffect(() => {
-    const initialTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
+    // This effect should probably be removed or refactored if tags are managed via `tags` state
+    // For now, keeping it as is but noting it might be redundant with `tags` state
+    const initialTags = Array.from(new Set(notes.flatMap(note => note.tag_id ? [note.tag_id] : [])));
     if (availableTags.length === 0 && initialTags.length > 0) {
       setAvailableTags(initialTags);
     }
-  }, []); // Run once on mount
+  }, [notes, availableTags]); // Run when notes change
 
   const handleNavigate = (view: "notes" | "ai" | "trash" | "settings") => {
     if (view === "settings") {
@@ -117,25 +104,21 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
     }
   };
 
-<<<<<<< HEAD
   // Tag Handlers
-  const handleAddTag = (tag: string) => {
-    const trimmedTag = tag.trim();
-    if (!trimmedTag || !currentNoteId) return;
-
-    // Add to global available tags if not present
-    if (!availableTags.includes(trimmedTag)) {
-      setAvailableTags([...availableTags, trimmedTag]);
-    }
-
-    setNotes(notes.map(note => {
-      if (note.id === currentNoteId) {
-        if (!note.tags.includes(trimmedTag)) {
-          return { ...note, tags: [...note.tags, trimmedTag] };
-        }
-=======
+  // Tag Handlers
   const handleAddTag = async (name: string) => {
     if (!name.trim()) return;
+
+    // Check if tag exists
+    const existingTag = tags.find(t => t.name.toLowerCase() === name.trim().toLowerCase());
+    if (existingTag) {
+      // Just assign it to current note
+      if (currentNoteId) {
+        handleUpdateNote(currentNoteId, currentNote?.title || "", currentNote?.content || "", existingTag.id);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/tags', {
         method: 'POST',
@@ -144,37 +127,36 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
       if (res.ok) {
         const newTag = await res.json();
         setTags([...tags, newTag]);
->>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
+        // Assign to current note
+        if (currentNoteId) {
+          handleUpdateNote(currentNoteId, currentNote?.title || "", currentNote?.content || "", newTag.id);
+        }
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleDeleteTag = async (id: string) => {
-    try {
-      await fetch(`/api/tags/${id}`, { method: 'DELETE' });
-      setTags(tags.filter((tag) => tag.id !== id));
-    } catch (e) {
-      console.error(e);
+  const handleDeleteTagFromNote = (tagId: string) => {
+    if (currentNoteId) {
+      handleUpdateNote(currentNoteId, currentNote?.title || "", currentNote?.content || "", undefined);
     }
   };
 
-<<<<<<< HEAD
-  // Global delete for sidebar
-  const handleDeleteTagGlobally = (tagToDelete: string) => {
-    // Remove from available tags
-    setAvailableTags(availableTags.filter(t => t !== tagToDelete));
+  const handleDeleteTag = async (id: string) => {
+    // Optimistic update
+    setTags(tags.filter((tag) => tag.id !== id));
+    setNotes(notes.map(n => n.tag_id === id ? { ...n, tag_id: undefined } : n));
+    setTrashNotes(trashNotes.map(n => n.tag_id === id ? { ...n, tag_id: undefined } : n));
 
-    // Remove from all notes
-    setNotes(notes.map(note => ({
-      ...note,
-      tags: note.tags.filter(t => t !== tagToDelete)
-    })));
+    try {
+      await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error(e);
+      fetchData(); // Revert on error
+    }
   };
 
-=======
->>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
   // Note Handlers
   const handleAddNote = async () => {
     try {
@@ -222,7 +204,7 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
     }
   };
 
-  const handleUpdateNote = async (id: string, title: string, content: string, tag_id?: string) => {
+  const handleUpdateNote = async (id: string, title: string, content: string, tag_id?: string | undefined) => {
     // Optimistic update (local state)
     if (currentView === 'notes') {
       setNotes(notes.map(note => note.id === id ? { ...note, title, content, tag_id } : note));
@@ -302,17 +284,10 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
           currentView={currentView}
           onNavigate={handleNavigate}
           className="hidden md:flex"
-<<<<<<< HEAD
-          tags={availableTags}
-          onDeleteTag={handleDeleteTagGlobally}
-          notes={visibleNotes}
-          currentNoteId={currentNoteId}
-=======
           tags={tags}
           onDeleteTag={handleDeleteTag}
           notes={displayNotes}
           currentNoteId={currentNoteId || ''}
->>>>>>> 0f88f51c0a24d4e4fde635813c99add7adbc7f91
           onSelectNote={setCurrentNoteId}
           onAddNote={handleAddNote}
           onPinNote={handlePinNote}
@@ -325,9 +300,9 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
             <Editor
               isSidebarOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-              tags={tags}
+              tags={currentNote.tag_id ? tags.filter(t => t.id === currentNote.tag_id) : []}
               onAddTag={handleAddTag}
-              onDeleteTag={handleDeleteTag}
+              onDeleteTag={handleDeleteTagFromNote}
               note={currentNote}
               onUpdateNote={(title, content, tag_id) => handleUpdateNote(currentNote.id, title, content, tag_id)}
               onMoveToTrash={() => handleMoveToTrash(currentNote.id)}
@@ -344,9 +319,9 @@ Get help from Baldy AI, your personal assistant for note-taking and organization
             <Editor
               isSidebarOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-              tags={tags}
+              tags={currentNote.tag_id ? tags.filter(t => t.id === currentNote.tag_id) : []}
               onAddTag={handleAddTag}
-              onDeleteTag={handleDeleteTag}
+              onDeleteTag={handleDeleteTagFromNote}
               note={currentNote}
               onUpdateNote={(title, content, tag_id) => handleUpdateNote(currentNote.id, title, content, tag_id)}
               onRestoreNote={() => handleRestoreFromTrash(currentNote.id)}
