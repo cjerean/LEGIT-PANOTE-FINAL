@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Advent_Pro, Fira_Code } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/auth-context";
+// 1. Import the ThemeProvider you created
+import { ThemeProvider } from "@/components/ui/themeprovider";
 
 const adventPro = Advent_Pro({
   variable: "--font-advent-pro",
@@ -24,11 +26,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // 2. Add suppressHydrationWarning to the <html> tag
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${adventPro.variable} ${firaCode.variable} antialiased`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        {/* 3. Wrap your existing body content with <ThemeProvider> */}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
