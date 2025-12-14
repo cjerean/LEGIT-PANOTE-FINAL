@@ -63,6 +63,17 @@ export function Sidebar({
     const [searchQuery, setSearchQuery] = React.useState("");
     const { user } = useAuth();
 
+    const [activeFilter, setActiveFilter] = React.useState<{ type: 'all' | 'untagged' | 'tag'; value?: string }>({ type: 'all' });
+
+    const handleSetFilter = (type: 'all' | 'untagged' | 'tag', value?: string) => {
+        setActiveFilter({ type, value });
+        setSearchQuery("");
+        setIsMenuOpen(false);
+        if (currentView !== 'notes' && !isTrash) {
+            onNavigate('notes');
+        }
+    };
+
     // Get display name: metadata.full_name -> email -> "User"
     const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User";
 
@@ -92,17 +103,25 @@ export function Sidebar({
     }
 
     // 2. Filter Notes
+    // 2. Filter Notes
     const filteredNotes = notes.filter(note => {
         if (note.trashed && !isTrash) return false;
 
-        const titleMatch = note.title.toLowerCase().includes(lowerQuery);
-        // Note tag match
-        const tagMatch = (note.tags || []).some(tag => tag.toLowerCase().includes(lowerQuery));
-        // Untagged match
-        const isUntagged = (!note.tags || note.tags.length === 0);
-        const untaggedMatch = isUntagged && "untagged".includes(lowerQuery);
+        // 1. Filter by View
+        if (activeFilter.type === 'untagged') {
+            if (note.tags && note.tags.length > 0) return false;
+        } else if (activeFilter.type === 'tag') {
+            if (!note.tags?.includes(activeFilter.value!)) return false;
+        }
 
-        return titleMatch || tagMatch || untaggedMatch;
+        // 2. Filter by Search Query
+        if (searchQuery.trim()) {
+            const titleMatch = note.title.toLowerCase().includes(lowerQuery);
+            const tagMatch = (note.tags || []).some(tag => tag.toLowerCase().includes(lowerQuery));
+            return titleMatch || tagMatch;
+        }
+
+        return true;
     });
 
     // Sort notes
@@ -148,11 +167,11 @@ export function Sidebar({
                 <div className="absolute left-2 top-[60px] z-50 w-[260px] rounded-md bg-sidebar p-2 shadow-lg border">
                     <div className="space-y-1">
                         <Button
-                            variant={currentView === "notes" ? "secondary" : "ghost"}
+                            variant={currentView === "notes" && activeFilter.type === 'all' ? "secondary" : "ghost"}
                             className="w-full justify-start"
                             onClick={() => {
                                 onNavigate("notes");
-                                setIsMenuOpen(false);
+                                handleSetFilter('all');
                             }}
                         >
                             <FileText className="mr-2 h-4 w-4" />
@@ -180,44 +199,65 @@ export function Sidebar({
                             <Settings className="mr-2 h-4 w-4" />
                             Settings
                         </Button>
-                        <Separator className="my-2" />
-                        <div className="flex items-center justify-between px-2 py-1">
+
+                        <div className="mt-4 flex items-center justify-between px-2 py-1">
                             <div className="text-xs font-medium text-muted-foreground">
                                 Tags
                             </div>
                             <Button
                                 variant="ghost"
-                                size="icon"
-                                className="h-4 w-4"
+                                size="sm"
+                                className="h-auto p-0 text-xs text-primary hover:bg-transparent"
                                 onClick={() => setIsEditingTags(!isEditingTags)}
                             >
-                                <Edit2 className="h-3 w-3" />
+                                {isEditingTags ? "Done" : "Edit"}
                             </Button>
                         </div>
 
                         {/* Tag List in Menu */}
                         <div className="space-y-1">
                             {tags.map((tag) => (
-                                <div key={tag} className="flex items-center justify-between px-2 py-1.5 hover:bg-sidebar-accent/50 rounded-md group">
-                                    <div className="flex items-center">
-                                        <Tag className="mr-2 h-4 w-4" />
-                                        <span className="text-sm">{tag}</span>
-                                    </div>
+                                <Button
+                                    key={tag}
+                                    variant={activeFilter.type === 'tag' && activeFilter.value === tag ? "secondary" : "ghost"}
+                                    className="w-full justify-between"
+                                    onClick={() => handleSetFilter('tag', tag)}
+                                >
+                                    <span className="truncate">{tag}</span>
                                     {isEditingTags && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6 text-destructive hover:text-destructive"
-                                            onClick={() => onDeleteTag(tag)}
+                                        <div
+                                            className="ml-2 h-4 w-4 rounded-sm hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDeleteTag(tag);
+                                                if (activeFilter.type === 'tag' && activeFilter.value === tag) {
+                                                    handleSetFilter('all');
+                                                }
+                                            }}
                                         >
                                             <X className="h-3 w-3" />
-                                        </Button>
+                                        </div>
                                     )}
-                                </div>
+                                </Button>
                             ))}
                         </div>
 
+                        {/* Untagged Notes Button */}
+                        <div className="pt-2">
+                            <Button
+                                variant={activeFilter.type === 'untagged' ? "secondary" : "ghost"}
+                                className="w-full justify-start text-muted-foreground hover:text-foreground"
+                                onClick={() => handleSetFilter('untagged')}
+                            >
+                                <div className="mr-2 flex h-4 w-4 items-center justify-center">
+                                    <Tag className="h-3 w-3 opacity-50" />
+                                </div>
+                                Untagged Notes
+                            </Button>
+                        </div>
+
                         <Separator className="my-2" />
+
                         <Button
                             variant={currentView === "ai" ? "secondary" : "ghost"}
                             className="w-full justify-start"
