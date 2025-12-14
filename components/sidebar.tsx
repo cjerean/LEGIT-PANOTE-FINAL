@@ -22,19 +22,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/auth-context";
 
+interface Tag {
+    id: string;
+    name: string;
+}
+
 interface Note {
     id: string;
     title: string;
     content: string;
     date: string;
     pinned: boolean;
+    tag_id?: string;
 }
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
     onNavigate: (view: "notes" | "ai" | "trash" | "settings") => void;
     currentView: string;
-    tags: string[];
-    onDeleteTag: (tag: string) => void;
+    tags: Tag[];
+    onDeleteTag: (id: string) => void;
     notes: Note[];
     currentNoteId: string;
     onSelectNote: (id: string) => void;
@@ -162,17 +168,17 @@ export function Sidebar({
                         {/* Tag List in Menu */}
                         <div className="space-y-1">
                             {tags.map((tag) => (
-                                <div key={tag} className="flex items-center justify-between px-2 py-1.5 hover:bg-sidebar-accent/50 rounded-md group">
+                                <div key={tag.id} className="flex items-center justify-between px-2 py-1.5 hover:bg-sidebar-accent/50 rounded-md group">
                                     <div className="flex items-center">
                                         <Tag className="mr-2 h-4 w-4" />
-                                        <span className="text-sm">{tag}</span>
+                                        <span className="text-sm">{tag.name}</span>
                                     </div>
                                     {isEditingTags && (
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="h-6 w-6 text-destructive hover:text-destructive"
-                                            onClick={() => onDeleteTag(tag)}
+                                            onClick={() => onDeleteTag(tag.id)}
                                         >
                                             <X className="h-3 w-3" />
                                         </Button>
