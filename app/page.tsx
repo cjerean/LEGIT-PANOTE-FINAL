@@ -20,6 +20,7 @@ export default function Home() {
   const [currentView, setCurrentView] = React.useState<"notes" | "ai" | "trash" | "settings">("notes");
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const [availableTags, setAvailableTags] = React.useState<string[]>([]);
 
   // Note State - Initial Welcome Note
   const [notes, setNotes] = React.useState<Note[]>([
@@ -38,7 +39,11 @@ Keep your notes organized by adding tags. Tags work a bit like folders, except t
 
 Search
 
-Quickly find notes using search.`,
+Quickly find notes using search. To search by tag, type “tag:” in the search bar followed by the name of your tag.
+
+Baldy AI
+
+Get help from Baldy AI, your personal assistant for note-taking and organization.`,
       date: new Date().toLocaleDateString(),
       pinned: true,
       trashed: false,
@@ -46,6 +51,14 @@ Quickly find notes using search.`,
     }
   ]);
   const [currentNoteId, setCurrentNoteId] = React.useState<string>('welcome-note');
+
+  // Initialize availableTags from existing notes
+  React.useEffect(() => {
+    const initialTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
+    if (availableTags.length === 0 && initialTags.length > 0) {
+      setAvailableTags(initialTags);
+    }
+  }, []); // Run once on mount
 
   const handleNavigate = (view: "notes" | "ai" | "trash" | "settings") => {
     if (view === "settings") {
@@ -59,6 +72,11 @@ Quickly find notes using search.`,
   const handleAddTag = (tag: string) => {
     const trimmedTag = tag.trim();
     if (!trimmedTag || !currentNoteId) return;
+
+    // Add to global available tags if not present
+    if (!availableTags.includes(trimmedTag)) {
+      setAvailableTags([...availableTags, trimmedTag]);
+    }
 
     setNotes(notes.map(note => {
       if (note.id === currentNoteId) {
@@ -83,14 +101,15 @@ Quickly find notes using search.`,
 
   // Global delete for sidebar
   const handleDeleteTagGlobally = (tagToDelete: string) => {
+    // Remove from available tags
+    setAvailableTags(availableTags.filter(t => t !== tagToDelete));
+
+    // Remove from all notes
     setNotes(notes.map(note => ({
       ...note,
       tags: note.tags.filter(t => t !== tagToDelete)
     })));
   };
-
-  // Derive all unique tags from all notes for the sidebar
-  const allTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
 
   // Note Handlers
   const handleAddNote = () => {
@@ -158,8 +177,8 @@ Quickly find notes using search.`,
           currentView={currentView}
           onNavigate={handleNavigate}
           className="hidden md:flex"
-          tags={allTags}
-          onDeleteTag={() => { }}
+          tags={availableTags}
+          onDeleteTag={handleDeleteTagGlobally}
           notes={visibleNotes}
           currentNoteId={currentNoteId}
           onSelectNote={setCurrentNoteId}

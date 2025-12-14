@@ -20,6 +20,14 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/context/auth-context";
 
 interface Note {
@@ -30,6 +38,7 @@ interface Note {
     pinned: boolean;
     trashed?: boolean;
     tags?: string[];
+    attachments?: string[];
 }
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -60,6 +69,7 @@ export function Sidebar({
 }: SidebarProps) {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const [isEditingTags, setIsEditingTags] = React.useState(false);
+    const [tagToDelete, setTagToDelete] = React.useState<string | null>(null);
     const [searchQuery, setSearchQuery] = React.useState("");
     const { user } = useAuth();
 
@@ -69,7 +79,7 @@ export function Sidebar({
         setActiveFilter({ type, value });
         setSearchQuery("");
         setIsMenuOpen(false);
-        if (currentView !== 'notes' && !isTrash) {
+        if (currentView !== 'notes') {
             onNavigate('notes');
         }
     };
@@ -85,16 +95,35 @@ export function Sidebar({
         .toUpperCase()
         .slice(0, 2);
 
+
+
     // Filter Logic
     const hasSearch = searchQuery.trim().length > 0;
     const lowerQuery = searchQuery.toLowerCase();
 
-    // 1. Filter Tags
-    const matchedTags = tags.filter(tag => tag.toLowerCase().includes(lowerQuery));
+    // Check for "tag:" search syntax
+    const isTagSearch = lowerQuery.startsWith("tag:");
+    const tagSearchQuery = isTagSearch ? lowerQuery.slice(4).trim() : "";
+    const isExplicitTagSearch = isTagSearch && tagSearchQuery.length > 0;
 
-    // Check for "untagged" notes
+    // 1. Filter Tags
+    let matchedTags = tags;
+    if (isTagSearch) {
+        if (tagSearchQuery) {
+            matchedTags = tags.filter(tag => tag.toLowerCase().includes(tagSearchQuery));
+        } else {
+            matchedTags = tags;
+        }
+    } else {
+        matchedTags = tags.filter(tag => tag.toLowerCase().includes(lowerQuery));
+    }
+
+    // Check for "untagged" notes logic
     const hasUntaggedNotes = notes.some(n => (!n.tags || n.tags.length === 0) && !n.trashed);
-    const showUntagged = hasUntaggedNotes && "untagged".includes(lowerQuery);
+
+    // Allow "untagged" to appear for standard search OR "tag:untagged"
+    const showUntagged = (!isTagSearch && hasUntaggedNotes && "untagged".includes(lowerQuery)) ||
+        (isTagSearch && hasUntaggedNotes && "untagged".includes(tagSearchQuery));
 
     // Combine matched tags and potentially "untagged"
     const displayTags = [...matchedTags];
@@ -102,7 +131,6 @@ export function Sidebar({
         displayTags.push("untagged");
     }
 
-    // 2. Filter Notes
     // 2. Filter Notes
     const filteredNotes = notes.filter(note => {
         if (note.trashed && !isTrash) return false;
@@ -116,6 +144,14 @@ export function Sidebar({
 
         // 2. Filter by Search Query
         if (searchQuery.trim()) {
+            if (isTagSearch) {
+                // If just "tag:", show NO notes (focus on tags list)
+                if (!isExplicitTagSearch) return false;
+
+                // Filter notes by tag name (partial allowed for better UX)
+                return (note.tags || []).some(tag => tag.toLowerCase().includes(tagSearchQuery));
+            }
+
             const titleMatch = note.title.toLowerCase().includes(lowerQuery);
             const tagMatch = (note.tags || []).some(tag => tag.toLowerCase().includes(lowerQuery));
             return titleMatch || tagMatch;
@@ -125,7 +161,7 @@ export function Sidebar({
     });
 
     // Sort notes
-    const notesDisplay = hasSearch ? filteredNotes : notes;
+    const notesDisplay = (hasSearch || activeFilter.type !== 'all') ? filteredNotes : notes;
 
     const sortedNotes = [...notesDisplay].sort((a, b) => {
         if (a.pinned === b.pinned) return 0;
@@ -149,11 +185,19 @@ export function Sidebar({
                     {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </Button>
                 <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                        <AvatarImage src="/placeholder-user.jpg" />
-                        <AvatarFallback>{initials || "UN"}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">{displayName}'s Notepad</span>
+                    {activeFilter.type === 'untagged' ? (
+                        <span className="text-sm font-medium">Untagged Notes</span>
+                    ) : activeFilter.type === 'tag' ? (
+                        <span className="text-sm font-medium">Tag: {activeFilter.value}</span>
+                    ) : (
+                        <>
+                            <Avatar className="h-8 w-8">
+                                <AvatarImage src="/placeholder-user.jpg" />
+                                <AvatarFallback>{initials || "UN"}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm font-medium">{displayName}'s Notepad</span>
+                        </>
+                    )}
                 </div>
                 {!isTrash && (
                     <Button variant="ghost" size="icon" className="ml-auto" onClick={onAddNote}>
@@ -229,10 +273,7 @@ export function Sidebar({
                                             className="ml-2 h-4 w-4 rounded-sm hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onDeleteTag(tag);
-                                                if (activeFilter.type === 'tag' && activeFilter.value === tag) {
-                                                    handleSetFilter('all');
-                                                }
+                                                setTagToDelete(tag);
                                             }}
                                         >
                                             <X className="h-3 w-3" />
@@ -308,7 +349,13 @@ export function Sidebar({
                                         <div
                                             key={tag}
                                             className="flex items-center px-2 py-1.5 text-sm text-sidebar-foreground cursor-pointer hover:bg-sidebar-accent/50 rounded-md"
-                                            onClick={() => setSearchQuery(tag)}
+                                            onClick={() => {
+                                                if (tag === "untagged") {
+                                                    handleSetFilter('untagged');
+                                                } else {
+                                                    setSearchQuery(`tag: ${tag}`);
+                                                }
+                                            }}
                                         >
                                             tag: {tag}
                                         </div>
@@ -408,6 +455,36 @@ export function Sidebar({
                     )
                 )}
             </ScrollArea>
+
+            <Dialog open={!!tagToDelete} onOpenChange={(open) => !open && setTagToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Tag</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to remove "{tagToDelete}"?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setTagToDelete(null)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                if (tagToDelete) {
+                                    onDeleteTag(tagToDelete);
+                                    if (activeFilter.type === 'tag' && activeFilter.value === tagToDelete) {
+                                        handleSetFilter('all');
+                                    }
+                                    setTagToDelete(null);
+                                }
+                            }}
+                        >
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
