@@ -12,6 +12,7 @@ import {
     Bold,
     Italic,
     Underline as UnderlineIcon,
+    CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,9 @@ import {
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Image from '@tiptap/extension-image';
 
 interface Tag {
     id: string;
@@ -76,11 +80,17 @@ export function Editor({
     isTrash
 }: EditorProps) {
     const [newTag, setNewTag] = React.useState("");
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const editor = useEditor({
         extensions: [
             StarterKit,
             Underline,
+            TaskList,
+            TaskItem.configure({
+                nested: true,
+            }),
+            Image,
         ],
         content: note.content,
         onUpdate: ({ editor }) => {
@@ -133,6 +143,24 @@ export function Editor({
         if (e.key === "Enter" && newTag.trim()) {
             onAddTag(newTag.trim());
             setNewTag("");
+        }
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const result = e.target?.result as string;
+                if (result && editor) {
+                    editor.chain().focus().setImage({ src: result }).run();
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
         }
     };
 
@@ -199,14 +227,30 @@ export function Editor({
                                 <span className="sr-only">Underline</span>
                             </Button>
                             <Separator orientation="vertical" className="mx-1 h-6" />
-                            <Button variant="ghost" size="icon">
-                                <ListTodo className="h-4 w-4" />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => editor.chain().focus().toggleTaskList().run()}
+                                className={editor.isActive('taskList') ? 'bg-secondary' : ''}
+                            >
+                                <CheckSquare className="h-4 w-4" />
                                 <span className="sr-only">Checklist</span>
                             </Button>
-                            <Button variant="ghost" size="icon">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
                                 <Paperclip className="h-4 w-4" />
                                 <span className="sr-only">Add attachments</span>
                             </Button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                            />
 
                             {/* Info Dialog */}
                             <Dialog>
